@@ -35,6 +35,8 @@ from .bitcoin import COIN
 from .crypto import sha256d
 from .i18n import _
 
+def read_uint8(vds):
+    return struct.unpack('<B', vds.read_bytes(1))[0]
 
 def tx_header_to_tx_type(tx_header_bytes):
     tx_header = struct.unpack('<I', tx_header_bytes)[0]
@@ -698,156 +700,97 @@ class DashCbTx(ProTxBase):
                         bestCLHeightDiff, bestCLSignature, assetLockedAmount)
 
 
-class DashSubTxRegister(ProTxBase):
-    '''Class representing DIP5 SubTxRegister'''
+class AssetLockTx(ProTxBase):
+    '''Class representing AssetLock transaction (type 8)'''
 
-    __slots__ = ('version userName pubKey payloadSig').split()
+    __slots__ = ('version', 'count', 'creditOutputs')
+
+    def __init__(self, version, count, creditOutputs):
+        self.version = version            # uint8_t
+        self.count = count                # uint8_t
+        self.creditOutputs = creditOutputs  # List of (value, scriptPubKey)
 
     def __str__(self):
-        return ('SubTxRegister Version: %s\n'
-                'userName: %s\n'
-                'pubKey: %s\n'
-                % (self.version, self.userName,
-                   bh2u(self.pubKey)))
+        outputs_str = '\n'.join(
+            ['  - Value: {}\n    ScriptPubKey: {}'.format(
+                co[0], bh2u(co[1])) for co in self.creditOutputs])
+        return ('AssetLockTx Version: {}\n'
+                'Count: {}\n'
+                'Credit Outputs:\n{}\n'
+                .format(
+                    self.version,
+                    self.count,
+                    outputs_str
+                ))
 
     def serialize(self):
-        assert len(self.pubKey) == 48, \
-            f'{len(self.pubKey)} not 48'
-        assert len(self.payloadSig) == 96, \
-            f'{len(self.payloadSig)} not 96'
-        userName = self.userName.encode('utf-8')
-        return (
-            struct.pack('<H', self.version) +           # version
-            to_varbytes(userName) +                     # userName
-            self.pubKey +                               # pubKey
-            self.payloadSig                             # payloadSig
-        )
+        res = b''
+        res += struct.pack('<B', self.version)     # version (uint8_t)
+        res += struct.pack('<B', self.count)       # count (uint8_t)
+        for value, scriptPubKey in self.creditOutputs:
+            res += struct.pack('<q', value)        # value (int64)
+            res += to_varbytes(scriptPubKey)     # scriptPubKey (as varbytes)
+        return res
 
     @classmethod
     def read_vds(cls, vds):
-        return DashSubTxRegister(
-            vds.read_uint16(),                          # version
-            read_varbytes(vds).decode('utf-8'),         # userName
-            vds.read_bytes(48),                         # pubKey
-            vds.read_bytes(96)                          # payloadSig
-        )
+        version = read_uint8(vds)                   # uint8_t
+        count = read_uint8(vds)                     # uint8_t
+        creditOutputs = []
+        for _ in range(count):
+            value = vds.read_int64()                 # int64
+            scriptPubKey = read_varbytes(vds)        # scriptPubKey as varbytes
+            creditOutputs.append((value, scriptPubKey))
+        return cls(version, count, creditOutputs)
 
+class AssetUnlockTx(ProTxBase):
+    '''Class representing AssetUnlock transaction (type 9)'''
 
-class DashSubTxTopup(ProTxBase):
-    '''Class representing DIP5 SubTxTopup'''
+    __slots__ = ('version', 'index', 'fee', 'signHeight', 'quorumHash', 'quorumSig')
 
-    __slots__ = ('version regTxHash').split()
+    def __init__(self, version, index, fee, signHeight, quorumHash, quorumSig):
+        self.version = version              # uint8_t
+        self.index = index                  # uint64
+        self.fee = fee                      # uint32
+        self.signHeight = signHeight        # uint32
+        self.quorumHash = quorumHash        # bytes(32)
+        self.quorumSig = quorumSig          # bytes(96)
 
     def __str__(self):
-        return ('SubTxTopup Version: %s\n'
-                'regTxHash: %s\n'
-                % (self.version,
-                   bh2u(self.regTxHash[::-1])))
+        return ('AssetUnlockTx Version: {}\n'
+                'Index: {}\n'
+                'Fee: {}\n'
+                'Sign Height: {}\n'
+                'Quorum Hash: {}\n'
+                'Quorum Signature: {}\n'
+                .format(
+                    self.version,
+                    self.index,
+                    self.fee,
+                    self.signHeight,
+                    bh2u(self.quorumHash[::-1]),
+                    bh2u(self.quorumSig)
+                ))
 
     def serialize(self):
-        assert len(self.regTxHash) == 32, \
-            f'{len(self.regTxHash)} not 32'
-        return (
-            struct.pack('<H', self.version) +           # version
-            self.regTxHash                              # regTxHash
-        )
+        res = b''
+        res += struct.pack('<B', self.version)     # version (uint8_t)
+        res += struct.pack('<Q', self.index)       # index (uint64)
+        res += struct.pack('<I', self.fee)         # fee (uint32)
+        res += struct.pack('<I', self.signHeight)  # signHeight (uint32)
+        res += self.quorumHash                     # quorumHash (32 bytes)
+        res += self.quorumSig                      # quorumSig (96 bytes)
+        return res
 
     @classmethod
     def read_vds(cls, vds):
-        return DashSubTxTopup(
-            vds.read_uint16(),                          # version
-            vds.read_bytes(32)                          # regTxHash
-        )
-
-
-class DashSubTxResetKey(ProTxBase):
-    '''Class representing DIP5 SubTxResetKey'''
-
-    __slots__ = ('version regTxHash hashPrevSubTx '
-                 'creditFee newPubKey payloadSig').split()
-
-    def __str__(self):
-        return ('SubTxResetKey Version: %s\n'
-                'regTxHash: %s\n'
-                'hashPrevSubTx: %s\n'
-                'creditFee: %s\n'
-                'newPubKey: %s\n'
-                % (self.version,
-                   bh2u(self.regTxHash[::-1]),
-                   bh2u(self.hashPrevSubTx[::-1]),
-                   self.creditFee,
-                   bh2u(self.newPubKey)))
-
-    def serialize(self):
-        assert len(self.regTxHash) == 32, \
-            f'{len(self.regTxHash)} not 32'
-        assert len(self.hashPrevSubTx) == 32, \
-            f'{len(self.hashPrevSubTx)} not 32'
-        assert len(self.newPubKey) == 48, \
-            f'{len(self.newPubKey)} not 48'
-        assert len(self.payloadSig) == 96, \
-            f'{len(self.payloadSig)} not 96'
-        return (
-            struct.pack('<H', self.version) +           # version
-            self.regTxHash +                            # regTxHash
-            self.hashPrevSubTx +                        # hashPrevSubTx
-            struct.pack('<q', self.creditFee) +         # creditFee
-            self.newPubKey +                            # newPubKey
-            self.payloadSig                             # payloadSig
-        )
-
-    @classmethod
-    def read_vds(cls, vds):
-        return DashSubTxResetKey(
-            vds.read_uint16(),                          # version
-            vds.read_bytes(32),                         # regTxHash
-            vds.read_bytes(32),                         # hashPrevSubTx
-            vds.read_int64(),                           # creditFee
-            vds.read_bytes(48),                         # newPubKey
-            vds.read_bytes(96)                          # payloadSig
-        )
-
-
-class DashSubTxCloseAccount(ProTxBase):
-    '''Class representing DIP5 SubTxCloseAccount'''
-
-    __slots__ = ('version regTxHash hashPrevSubTx '
-                 'creditFee payloadSig').split()
-
-    def __str__(self):
-        return ('SubTxCloseAccount Version: %s\n'
-                'regTxHash: %s\n'
-                'hashPrevSubTx: %s\n'
-                'creditFee: %s\n'
-                % (self.version,
-                   bh2u(self.regTxHash[::-1]),
-                   bh2u(self.hashPrevSubTx[::-1]),
-                   self.creditFee))
-
-    def serialize(self):
-        assert len(self.regTxHash) == 32, \
-            f'{len(self.regTxHash)} not 32'
-        assert len(self.hashPrevSubTx) == 32, \
-            f'{len(self.hashPrevSubTx)} not 32'
-        assert len(self.payloadSig) == 96, \
-            f'{len(self.payloadSig)} not 96'
-        return (
-            struct.pack('<H', self.version) +           # version
-            self.regTxHash +                            # regTxHash
-            self.hashPrevSubTx +                        # hashPrevSubTx
-            struct.pack('<q', self.creditFee) +         # creditFee
-            self.payloadSig                             # payloadSig
-        )
-
-    @classmethod
-    def read_vds(cls, vds):
-        return DashSubTxCloseAccount(
-            vds.read_uint16(),                          # version
-            vds.read_bytes(32),                         # regTxHash
-            vds.read_bytes(32),                         # hashPrevSubTx
-            vds.read_int64(),                           # creditFee
-            vds.read_bytes(96)                          # payloadSig
-        )
+        version = read_uint8(vds)                   # uint8_t
+        index = vds.read_uint64()                    # uint64
+        fee = vds.read_uint32()                      # uint32
+        signHeight = vds.read_uint32()               # uint32
+        quorumHash = vds.read_bytes(32)              # bytes(32)
+        quorumSig = vds.read_bytes(96)               # bytes(96)
+        return cls(version, index, fee, signHeight, quorumHash, quorumSig)
 
 
 # Supported Spec Tx types and corresponding handlers mapping
@@ -857,10 +800,8 @@ SPEC_PRO_UP_SERV_TX = 2
 SPEC_PRO_UP_REG_TX = 3
 SPEC_PRO_UP_REV_TX = 4
 SPEC_CB_TX = 5
-SPEC_SUB_TX_REGISTER = 8
-SPEC_SUB_TX_TOPUP = 9
-SPEC_SUB_TX_RESET_KEY = 10
-SPEC_SUB_TX_CLOSE_ACCOUNT = 11
+SPEC_ASSETLOCK_TX = 8
+SPEC_ASSETUNLOCK_TX = 9
 
 
 SPEC_TX_HANDLERS = {
@@ -869,10 +810,8 @@ SPEC_TX_HANDLERS = {
     SPEC_PRO_UP_REG_TX: DashProUpRegTx,
     SPEC_PRO_UP_REV_TX: DashProUpRevTx,
     SPEC_CB_TX: DashCbTx,
-    SPEC_SUB_TX_REGISTER: DashSubTxRegister,
-    SPEC_SUB_TX_TOPUP: DashSubTxTopup,
-    SPEC_SUB_TX_RESET_KEY: DashSubTxResetKey,
-    SPEC_SUB_TX_CLOSE_ACCOUNT: DashSubTxCloseAccount,
+    SPEC_ASSETLOCK_TX: AssetLockTx,
+    SPEC_ASSETUNLOCK_TX: AssetUnlockTx,
 }
 
 
@@ -896,10 +835,8 @@ SPEC_TX_NAMES = {
     SPEC_PRO_UP_REG_TX: 'ProUpRegTx',
     SPEC_PRO_UP_REV_TX: 'ProUpRevTx',
     SPEC_CB_TX: 'CbTx',
-    SPEC_SUB_TX_REGISTER: 'SubTxRegister',
-    SPEC_SUB_TX_TOPUP: 'SubTxTopup',
-    SPEC_SUB_TX_RESET_KEY: 'SubTxResetKey',
-    SPEC_SUB_TX_CLOSE_ACCOUNT: 'SubTxCloseAccount',
+    SPEC_ASSETLOCK_TX: 'AssetLockTx',
+    SPEC_ASSETUNLOCK_TX: 'AssetUnlockTx',
 
     # as tx_type is uint16, can make PrivateSend types >= 65536
     PSTxTypes.NEW_DENOMS: 'PS New Denoms',
