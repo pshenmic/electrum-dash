@@ -35,8 +35,6 @@ from .bitcoin import COIN
 from .crypto import sha256d
 from .i18n import _
 
-def read_uint8(vds):
-    return struct.unpack('<B', vds.read_bytes(1))[0]
 
 def tx_header_to_tx_type(tx_header_bytes):
     tx_header = struct.unpack('<I', tx_header_bytes)[0]
@@ -734,8 +732,8 @@ class AssetLockTx(ProTxBase):
 
     @classmethod
     def read_vds(cls, vds):
-        version = read_uint8(vds)                   # version (uint8_t)
-        count = read_uint8(vds)                     # count (uint8_t)
+        version = vds.read_uchar()                   # version (uint8_t)
+        count = vds.read_uchar()                     # count (uint8_t)
         creditOutputs = []
         for _ in range(count):
             value = vds.read_int64()                 # credit outputs value (int64)
@@ -784,7 +782,7 @@ class AssetUnlockTx(ProTxBase):
 
     @classmethod
     def read_vds(cls, vds):
-        version = read_uint8(vds)                    # version (uint8_t)
+        version = vds.read_uchar()                    # version (uint8_t)
         index = vds.read_uint64()                    # index (uint64)
         fee = vds.read_uint32()                      # fee (uint32)
         signHeight = vds.read_uint32()               # signHeight (uint32)
