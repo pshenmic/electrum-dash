@@ -706,14 +706,14 @@ class AssetLockTx(ProTxBase):
     __slots__ = ('version', 'count', 'creditOutputs')
 
     def __init__(self, version, count, creditOutputs):
-        self.version = version            # uint8_t
-        self.count = count                # uint8_t
-        self.creditOutputs = creditOutputs  # List of (value, scriptPubKey)
+        self.version = version            # version (uint8_t)
+        self.count = count                # count (uint8_t)
+        self.creditOutputs = creditOutputs  # List of tx outpoint (value, scriptPubKey)
 
     def __str__(self):
         outputs_str = '\n'.join(
             ['  - Value: {}\n    ScriptPubKey: {}'.format(
-                co[0], bh2u(co[1])) for co in self.creditOutputs])
+                credit_output[0], bh2u(credit_output[1])) for credit_output in self.creditOutputs])
         return ('AssetLockTx Version: {}\n'
                 'Count: {}\n'
                 'Credit Outputs:\n{}\n'
@@ -728,17 +728,17 @@ class AssetLockTx(ProTxBase):
         res += struct.pack('<B', self.version)     # version (uint8_t)
         res += struct.pack('<B', self.count)       # count (uint8_t)
         for value, scriptPubKey in self.creditOutputs:
-            res += struct.pack('<q', value)        # value (int64)
+            res += struct.pack('<q', value)        # credit outputs value  (int64)
             res += to_varbytes(scriptPubKey)     # scriptPubKey (as varbytes)
         return res
 
     @classmethod
     def read_vds(cls, vds):
-        version = read_uint8(vds)                   # uint8_t
-        count = read_uint8(vds)                     # uint8_t
+        version = read_uint8(vds)                   # version (uint8_t)
+        count = read_uint8(vds)                     # count (uint8_t)
         creditOutputs = []
         for _ in range(count):
-            value = vds.read_int64()                 # int64
+            value = vds.read_int64()                 # credit outputs value (int64)
             scriptPubKey = read_varbytes(vds)        # scriptPubKey as varbytes
             creditOutputs.append((value, scriptPubKey))
         return cls(version, count, creditOutputs)
@@ -749,12 +749,12 @@ class AssetUnlockTx(ProTxBase):
     __slots__ = ('version', 'index', 'fee', 'signHeight', 'quorumHash', 'quorumSig')
 
     def __init__(self, version, index, fee, signHeight, quorumHash, quorumSig):
-        self.version = version              # uint8_t
-        self.index = index                  # uint64
-        self.fee = fee                      # uint32
-        self.signHeight = signHeight        # uint32
-        self.quorumHash = quorumHash        # bytes(32)
-        self.quorumSig = quorumSig          # bytes(96)
+        self.version = version              # version (uint8_t)
+        self.index = index                  # index (uint64)
+        self.fee = fee                      # fee (uint32)
+        self.signHeight = signHeight        # sign height (uint32)
+        self.quorumHash = quorumHash        # quorumHash (bytes(32))
+        self.quorumSig = quorumSig          # quorumSig (bytes(96))
 
     def __str__(self):
         return ('AssetUnlockTx Version: {}\n'
@@ -784,12 +784,12 @@ class AssetUnlockTx(ProTxBase):
 
     @classmethod
     def read_vds(cls, vds):
-        version = read_uint8(vds)                   # uint8_t
-        index = vds.read_uint64()                    # uint64
-        fee = vds.read_uint32()                      # uint32
-        signHeight = vds.read_uint32()               # uint32
-        quorumHash = vds.read_bytes(32)              # bytes(32)
-        quorumSig = vds.read_bytes(96)               # bytes(96)
+        version = read_uint8(vds)                    # version (uint8_t)
+        index = vds.read_uint64()                    # index (uint64)
+        fee = vds.read_uint32()                      # fee (uint32)
+        signHeight = vds.read_uint32()               # signHeight (uint32)
+        quorumHash = vds.read_bytes(32)              # quorumHash (bytes(32))
+        quorumSig = vds.read_bytes(96)               # quorumSig (bytes(96))
         return cls(version, index, fee, signHeight, quorumHash, quorumSig)
 
 
