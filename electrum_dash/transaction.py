@@ -647,7 +647,7 @@ class Transaction:
             tx._version = header
 
         n_vin = vds.read_compact_size()
-        if n_vin < 1:
+        if n_vin < 1 and tx._tx_type != 9:
             raise SerializationError('tx needs to have at least 1 input')
         tx._inputs = [parse_input(vds) for i in range(n_vin)]
         n_vout = vds.read_compact_size()
