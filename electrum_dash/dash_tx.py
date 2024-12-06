@@ -712,7 +712,8 @@ class AssetLockTx(ProTxBase):
         outputs_str = '\n'.join(
             ['  - Value: {}\n    ScriptPubKey: {}'.format(
                 credit_output[0], bh2u(credit_output[1])) for credit_output in self.creditOutputs])
-        return ('AssetLockTx Version: {}\n'
+        return ('AssetLockTx\n'
+                'Version: {}\n'
                 'Count: {}\n'
                 'Credit Outputs:\n{}\n'
                 .format(
@@ -755,7 +756,8 @@ class AssetUnlockTx(ProTxBase):
         self.quorumSig = quorumSig          # quorumSig (bytes(96))
 
     def __str__(self):
-        return ('AssetUnlockTx Version: {}\n'
+        return ('AssetUnlockTx\n'
+                'Version: {}\n'
                 'Index: {}\n'
                 'Fee: {}\n'
                 'Sign Height: {}\n'

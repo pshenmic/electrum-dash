@@ -2177,6 +2177,13 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
     @protected
     @ps_ks_protected
     def sign_tx(self, tx, *, callback, external_keypairs, password):
+
+        if hasattr(self, 'extra_payload') and \
+                hasattr(self.extra_payload, 'extra_payload') and \
+                hasattr(self.extra_payload.extra_payload, 'payload_sig_msg_part') and \
+                self.extra_payload.extra_payload.payload_sig_msg_part != "":
+            tx.extra_payload.payload_sig_msg_part = self.extra_payload.extra_payload.payload_sig_msg_part
+
         self.sign_tx_with_password(tx, callback=callback, password=password, external_keypairs=external_keypairs)
 
     def create_small_denoms(self, denoms_by_vals, parent):

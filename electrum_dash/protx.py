@@ -310,7 +310,7 @@ class ProTxManager(Logger):
         if not coll_hash_is_null:
             tx.payload_sig_msg_part = ('%s|%s|%s|%s|' %
                                        (mn.payout_address,
-                                        mn.op_reward,
+                                        mn.collateral.index,
                                         mn.owner_addr,
                                         mn.voting_addr))
         return tx
