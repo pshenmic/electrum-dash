@@ -2177,7 +2177,7 @@ class ElectrumWindow(QMainWindow, MessageBoxMixin, Logger):
     @protected
     @ps_ks_protected
     def sign_tx(self, tx, *, callback, external_keypairs, password):
-# https://github.com/pshenmic/electrum-dash/pull/33 patch for signing extra data
+    # https://github.com/pshenmic/electrum-dash/pull/33 patch for signing extra data
         if hasattr(self, 'extra_payload') and \
                 hasattr(self.extra_payload, 'extra_payload') and \
                 hasattr(self.extra_payload.extra_payload, 'payload_sig_msg_part') and \
