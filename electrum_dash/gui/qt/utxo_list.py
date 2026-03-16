@@ -31,7 +31,7 @@ from functools import partial
 
 from PyQt5.QtCore import (pyqtSignal, Qt, QModelIndex, QVariant,
                           QAbstractItemModel, QItemSelectionModel)
-from PyQt5.QtGui import QFont
+from PyQt5.QtGui import QFont, QBrush, QColor
 from PyQt5.QtWidgets import (QAbstractItemView, QHeaderView, QComboBox,
                              QLabel, QMenu)
 
@@ -217,6 +217,12 @@ class UTXOModel(QAbstractItemModel, Logger):
                     return QVariant(Qt.AlignVCenter)
             elif role == Qt.FontRole:
                 return QVariant(QFont(MONOSPACE_FONT))
+            elif role == Qt.ForegroundRole:
+                if col == UTXOColumns.LABEL:
+                    # Green for explicit tx label, red for address label fallback
+                    is_tx_label = bool(coin_item.get('label_is_tx', False))
+                    color = QColor("#00A000") if is_tx_label else QColor("#DC0000")
+                    return QVariant(QBrush(color))
             elif role == Qt.BackgroundRole:
                 if col == UTXOColumns.ADDRESS and is_frozen_addr:
                     return QVariant(ColorScheme.BLUE.as_color(True))
@@ -282,7 +288,15 @@ class UTXOModel(QAbstractItemModel, Logger):
                     prevout_timestamp = utxo.islock or math.inf
             outpoint = utxo.prevout.to_str()
             self.view._utxo_dict[outpoint] = utxo
-            label = w.get_label_for_txid(prev_h) or w.get_label(address)
+
+            tx_label = w.get_label_for_txid(prev_h)
+            if tx_label:
+                label = f"TX: {tx_label}"
+                label_is_tx = True
+            else:
+                label = w.get_label(address)
+                label_is_tx = False
+
             coin_items.append({
                 'address': address,
                 'value': value,
@@ -301,6 +315,7 @@ class UTXOModel(QAbstractItemModel, Logger):
                 'is_frozen_addr': w.is_frozen_address(address),
                 'is_frozen_coin': w.is_frozen_coin(utxo),
                 'label': label,
+                'label_is_tx': label_is_tx,
                 'balance': self.parent.format_amount(value, whitespaces=True),
             })
         return coin_items
